@@ -104,8 +104,8 @@ def main(args):
                 best_log_p = log_probs[i, :, j]
                 backoff_log_p = log_probs[i, :, j+1]
                 next_word = torch.where(best_candidate == tgt_dict.unk_idx, backoff_candidate, best_candidate)
-                log_p_list = torch.where(best_candidate == tgt_dict.unk_idx, backoff_log_p, best_log_p)
-                log_p = log_p_list[-1]
+                log_p = torch.where(best_candidate == tgt_dict.unk_idx, backoff_log_p, best_log_p)
+                log_p = log_p[-1]
 
                 # Store the encoder_out information for the current input sentence and beam
                 emb = encoder_out['src_embeddings'][:,i,:]
@@ -121,10 +121,12 @@ def main(args):
                                       mask, torch.cat((go_slice[i], next_word)), log_p, 1)
                 # __QUESTION 3: Why do we add the node with a negative score?
 
-                # ADDING REGULARIZATION 
-                regularizer = 0.5 * torch.sum(torch.square(log_p_list[:j]))
-     
-                searches[i].add(-node.eval(args.alpha)+regularizer, node)
+                #Adding extra term into score
+                
+                gamma = 1
+                term = -gamma*j
+
+                searches[i].add(-node.eval(args.alpha) + term, node)
 
         #import pdb;pdb.set_trace()
         # Start generating further tokens until max sentence length reached
@@ -199,7 +201,8 @@ def main(args):
                 search.prune()
 
         # Segment into sentences
-        best_sents = torch.stack([search.get_best()[1].sequence[1:].cpu() for search in searches])
+        best_sents = torch.stack([search.get_N_best(5)[1].sequence[1:].cpu() for search in searches])
+        print(best_sents)
         decoded_batch = best_sents.numpy()
         #import pdb;pdb.set_trace()
 
